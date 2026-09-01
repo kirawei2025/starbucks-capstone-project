@@ -1,4 +1,4 @@
-![](images/cover.png)
+![](images/cover.jpeg)
 
 ## Data Preprocessing & Exploratory Data Analysis (EDA)
 
