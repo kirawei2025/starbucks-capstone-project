@@ -1,77 +1,148 @@
-# Starbucks Offer Recommendation System
+![](images/cover.png)
 
-## Introduction
+## Data Preprocessing & Exploratory Data Analysis (EDA)
 
-This project was done as a requirement for the Udacity Data Scientist
-Nanodegree. The goal of the project is to use the transactional,
-customer and offer data to provide offer recommendations to Starbucks
-customers. The data was obtained by a simulation of the Starbucks
-mobile app in which customers receive and view offers, and pay their
-drinks in the stores.
+The `EDA.ipynb` notebook covers data cleaning, feature engineering, and exploratory data analysis across the portfolio, profile, and transcript datasets.
 
-## Configuration
+### Data Preprocessing
+- **Portfolio Dataset**:
+  - Unpacked and expanded the `channels` list into one-hot encoded dummy variables (`email`, `mobile`, `social`, `web`).
+  - Renamed `id` to `offer_id` for consistency across datasets.
+  - Mapped lengthy 32-character offer IDs to concise aliases (e.g., `B1`–`B4` for BOGO, `D1`–`D4` for Discount, `I1`–`I2` for Informational).
 
-The project was implemented using Jupyter Notebooks, Python and
-libraries used for data analysis such as Pandas and Numpy. 
+- **Profile Dataset**:
+  - Converted `became_member_on` to datetime format.
+  - Renamed `id` to `customer_id`.
+  - Handled missing demographic values (where `age == 118`) by creating a `valid` boolean flag to easily filter out incomplete records.
+  - One-hot encoded `gender` (`F`, `M`, `O`).
+  - Engineered categorical feature groups:
+    - **`age_group`**: `<25`, `25-35`, `35-45`, `45-55`, `55-65`, `65+`
+    - **`income_group`**: `<50k`, `50k-80k`, `80-100k`, `100k+`
+    - **`membership_length_group`**: `<0.5 yr`, `0.5-1 yr`, `1-2 yr`, `2-5 yr`, `5+ yr`
 
-## Methodology
+- **Transcript Dataset**:
+  - Extracted `offer_id` and `amount` values from the nested `value` dictionary column.
+  - One-hot encoded event types (`offer_received`, `offer_viewed`, `offer_completed`, `transaction`).
+  - Renamed `person` to `customer_id`.
 
-In this project, we use the techniques used in a regular data science project.
+- **Data Integration**:
+  - Left-joined `transcript`, `profile`, and `portfolio` into a single dataset (`df_merged.csv`) filtered to valid customer records.
 
-### 1. Business Understanding
+### Exploratory Data Analysis
+- **Automated Reporting**: Generated automated EDA reports using [Sweetviz](https://pypi.org/project/sweetviz/) (`sweetviz_report.html`) and Pandas Profiling (`Pandas Profile Report.html`).
+- **Offer Performance Analysis**: Evaluated receive, view, and completion rates grouped by offer type (`bogo`, `discount`, `informational`), customer age demographics, and income groups.
 
-To guide the project, the following questions were considered:
+## Model Building & Evaluation
 
-- What are the main factors that contribute to customers making purchases?
-- Are offers a way to increase customer engagement?
-- What kind of offers are the most popular?
-- What populations are more interested in offers?
-- What offers should we recommend to different customers?
+The [`model.ipynb`](https://github.com/kirawei2025/starbucks-capstone-project/blob/main/model.ipynb) notebook details the feature prep, hyperparameter tuning, model training, and comparative evaluation for predicting customer offer response (`offer_viewed`).
 
-### 2. Prepare Data
+### Model Preprocessing & Feature Engineering
+- **Filtering**: Removed transaction records (`offer_id` as NaN) and non-responder entries where neither `offer_received` nor `offer_viewed` occurred. Excluded non-specified gender entries (`O == True`).
+- **Feature Derivation & Encoding**:
+  - Calculated **`membership_days`** relative to `2019-01-01`.
+  - Aggregated event counts (`offer_received`, `offer_viewed`) by customer and offer.
+  - Converted gender flags (`F`, `M`) to integer indicators.
+  - One-hot encoded categorical columns including `offer_type`, `offer_id`, `duration`, `reward`, and `difficulty`.
+- **Feature Scaling**: Applied `MinMaxScaler` across continuous features (`income`, `membership_days`, and `age`).
+- **Correlation Analysis**: Conducted Spearman correlation analysis and rendered a heatmap across numerical and encoded categorical features.
 
-In the [helper.py](https://github.com/MohanCR97/Udacity-Data_Scientist_Nanodegree/blob/master/Starbucks_CapstoneProject/helper.py)
-file, the `clean_portfolio`, `clean_profile` and `clean_transcript` functions are
-provided. They implement the following functionality:
+---
 
-**Portfolio Dataframe Tasks**
-* Split the channels into several columns
-* Split offer_type into several columns
-* change id column name to offer_id
+### Machine Learning Models & Hyperparameter Tuning
+Five classification algorithms were trained and evaluated using **5-Fold Cross-Validation** optimized for **ROC-AUC** scores (`scoring='roc_auc'`) via `GridSearchCV`:
 
-**Profile Dataframe Tasks**
-* Fix the date.
-* Split gender column into dummy columns
-* Change the column name id to customer_id. 
+1. **XGBoost Classifier** (`XGBClassifier`)
+   - **Tuned Parameters**: `colsample_bytree: 0.8`, `learning_rate: 0.1`, `max_depth: 5`, `n_estimators: 100`, `subsample: 1`
+   - **Best CV ROC-AUC Score**: **`0.8641`**
 
-**Transcript Dataframe Tasks**
+2. **Random Forest Classifier** (`RandomForestClassifier`)
+   - **Tuned Parameters**: `max_depth: 10`, `max_features: 'sqrt'`, `min_samples_split: 5`
+   - **Best CV ROC-AUC Score**: **`0.8613`**
+   - **Feature Importance**: Evaluated cumulative importance scores to identify key variables driving target prediction.
 
-* Split value in several columns for offers and transactions
-* Split event column into several columns
-* Change column name person to customer_id
+3. **K-Nearest Neighbors** (`KNeighborsClassifier`)
+   - **Tuned Parameters**: `metric: 'manhattan'`, `n_neighbors: 50`, `weights: 'uniform'`
+   - **Best CV ROC-AUC Score**: **`0.8569`**
 
+4. **Logistic Regression** (`LogisticRegression`)
+   - **Tuned Parameters**: `C: 0.1`, `l1_ratio: 1`, `solver: 'liblinear'`
+   - **Best CV ROC-AUC Score**: **`0.8389`**
+   - **Coefficient Analysis**: Extracted feature coefficients to determine directional impact on offer view probability.
 
-### 3. Exploratory Analysis
+5. **Support Vector Classifier** (`SVC`)
+   - **Tuned Parameters**: `C: 100`, `gamma: 'scale'`, `kernel: 'linear'`
+   - **Best CV ROC-AUC Score**: **`0.8338`**
 
-In this stage, we analyzed the population based on their demographics
-and their spending behavior. We also took into account the
-interactions between the customers and the offers provided.
+---
 
+### Key Findings & Model Evaluation Metrics
+- **Performance Evaluation**: Models were evaluated on test data ($30\%$ split) using standard metrics: **Accuracy**, **Precision**, **Recall**, **F1-Score**, and **ROC-AUC Score**.
+- **Best Performing Model**: **XGBoost Classifier** achieved the highest cross-validation ROC-AUC score (`0.8641`), closely followed by **Random Forest** (`0.8613`).
+- **Artifacts & Visualizations Generated**:
+  - `correlation_heatmap.png`
+  - `confusion_matrix_rf.png` & `confusion_matrix_lr.png`
+  - `auc_roc_curve.png` & `auc_roc_curve_lr.png`
+  - `feature_importance_rf.png` & `feature_importance_lr.png`
 
-### 4. Recommendation Engine
-
-I used a knowledge based recommendation engine in this project and
-provided one that selects the most popular offers without considering
-demographics, first. This system is a good start for customers that do
-not provide any demographic data in the app.
-
-For the rest of costumers, i introduced filters that help the system
-make recommendations based on the demographic data provided by the
-customers.
-
-I evaluated the recommendation systems by using visualizations from
-the data.
-
-### 5. Blog Website
-
-A blog has been published in this [site](https://mohancr97.github.io/Starbucks_CapstoneProject/)
+## Repo structure
+```
+├── data
+│   ├── df_merged.csv
+│   ├── portfolio.json
+│   ├── profile.json
+│   └── transcript.json
+├── docs
+│   ├── _config.yml
+│   ├── images
+│   │   ├── b1_by_expense.png
+│   │   ├── b2_by_expense.png
+│   │   ├── b2_gender.png
+│   │   ├── b3_by_expense.png
+│   │   ├── b3_by_income.png
+│   │   ├── b3_gender.png
+│   │   ├── d1_gender.png
+│   │   ├── expense_age.png
+│   │   ├── expense_gender.png
+│   │   ├── expense_income.png
+│   │   ├── expense.png
+│   │   ├── offer_distro.png
+│   │   └── population.png
+│   └── index.md
+├── EDA.ipynb
+├── images
+│   ├── clustering
+│   │   ├── cluster_duration.png
+│   │   ├── cluster_offer_type.png
+│   │   ├── cluster_platform.png
+│   │   ├── kmeans_cluster_duration.png
+│   │   ├── kmeans_cluster_offer_type.png
+│   │   └── kmeans_cluster_platform.png
+│   ├── cover.jpeg
+│   ├── eda
+│   │   ├── correlation_heatmap.png
+│   │   ├── offer_metrics_by_age.png
+│   │   ├── offer_metrics_by_distribution_channel.png
+│   │   ├── offer_metrics_by_income.png
+│   │   ├── offer_metrics_by_membership_length.png
+│   │   ├── offer_metrics_by_offer_types.png
+│   │   └── scatter_completeRate.png
+│   └── model
+│       ├── accuracy_scors.png
+│       ├── auc_roc_curve_lr.png
+│       ├── auc_roc_curve_models.png
+│       ├── auc_roc_curve_rf.png
+│       ├── confusion_matrix_KNeighborsClassifier.png
+│       ├── confusion_matrix_lr.png
+│       ├── confusion_matrix_models.png
+│       ├── confusion_matrix_rf.png
+│       ├── confusion_matrix_SVC.png
+│       ├── confusion_matrix_XGBClassifier.png
+│       ├── correlation_heatmap_rf.png
+│       ├── feature_importance_lr.png
+│       ├── feature_importance_rf.png
+│       └── feature_importance_xgboost.png
+├── model.ipynb
+├── Pandas Profile Report.html
+├── README.md
+└── sweetviz_report.html
+```
